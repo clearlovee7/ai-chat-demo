@@ -5,6 +5,14 @@
   <meta charset="UTF-8">
   <title>AI 流式对话</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- marked.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- DOMPurify -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <!-- highlight.js 样式 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css">
+  <!-- highlight.js 核心库 -->
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -261,6 +269,107 @@
       background: #fff2f0;
       color: #d93026;
     }
+
+    /* ---------- Markdown 内容样式 ---------- */
+    .md-body {
+      /* 内层元素自己控制间距，所以去掉父级的 pre-wrap 影响 */
+      white-space: normal;
+    }
+
+    .md-body :first-child {
+      margin-top: 0;
+    }
+
+    .md-body :last-child {
+      margin-bottom: 0;
+    }
+
+    .md-body p {
+      margin: 0 0 10px;
+    }
+
+    .md-body h1,
+    .md-body h2,
+    .md-body h3 {
+      margin: 16px 0 8px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .md-body h1 {
+      font-size: 19px;
+    }
+
+    .md-body h2 {
+      font-size: 17px;
+    }
+
+    .md-body h3 {
+      font-size: 15px;
+    }
+
+    .md-body ul,
+    .md-body ol {
+      margin: 0 0 10px;
+      padding-left: 22px;
+    }
+
+    .md-body li {
+      margin: 4px 0;
+    }
+
+    .md-body code {
+      background: #eef1f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: Consolas, Monaco, monospace;
+    }
+
+    .md-body pre {
+      background: #f6f8fa;
+      border: 1px solid #e6e9ef;
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin: 0 0 10px;
+    }
+
+    .md-body pre code {
+      background: none;
+      /* 代码块内部不要再加灰底 */
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .md-body blockquote {
+      border-left: 3px solid #d8dee8;
+      padding-left: 12px;
+      margin: 0 0 10px;
+      color: #6b7684;
+    }
+
+    .md-body table {
+      border-collapse: collapse;
+      margin: 0 0 10px;
+      font-size: 13.5px;
+    }
+
+    .md-body th,
+    .md-body td {
+      border: 1px solid #e2e6ee;
+      padding: 6px 10px;
+    }
+
+    .md-body th {
+      background: #f4f6fa;
+      font-weight: 600;
+    }
+
+    .md-body a {
+      color: #409eff;
+    }
   </style>
 </head>
 
@@ -300,10 +409,19 @@
 
           <div class="row ai">
             <div class="bubble ai-bubble" :class="{ 'bubble-error': msg.isError }">
-              <template v-if="msg.content">{{ msg.content }}</template>
+
+              <!-- ① 错误消息：纯文本直接显示 -->
+              <template v-if="msg.isError">{{ msg.content }}</template>
+
+              <!-- ② 正常回答：Markdown 渲染（md-body 样式挂在这一层） -->
+              <div v-else-if="msg.content" class="md-body" v-html="renderMarkdown(msg.content)"></div>
+
+              <!-- ③ 还没内容：等待提示 -->
               <span v-else style="color:#9aa4b2">正在思考...</span>
-              <!-- 最后一条且正在生成时，显示闪烁光标 -->
+
+              <!-- ④ 打字光标：最后一条 + 生成中 + 已有内容 -->
               <span v-if="loading && i === messages.length - 1 && msg.content" class="cursor"></span>
+
             </div>
           </div>
         </template>
@@ -336,6 +454,16 @@
         const loading = ref(false)                                  // 是否生成中
         const chatBox = ref(null)                                   // 消息区 DOM 引用（用于自动滚到底部）
         let controller = null
+
+
+        function renderMarkdown(text) {
+          if (!text) return ''
+          const html = marked.parse(text)
+
+          return DOMPurify.sanitize(html, {
+            ADD_ATTR: ['target'],
+          })
+        }
 
         async function ask() {
           if (!input.value.trim() || loading.value) return        // 空内容或生成中 → 不发
@@ -411,9 +539,13 @@
           if (chatBox.value) {
             chatBox.value.scrollTop = chatBox.value.scrollHeight
           }
+
+          chatBox.value?.querySelectorAll('pre code:not(.hljs)').forEach(el => {
+            hljs.highlightElement(el)
+          });
         }, { deep: true })     // ★ deep 必须加，否则监听不到数组内部对象的变化
 
-        return { input, messages, loading, ask, chatBox, stop }
+        return { input, messages, loading, ask, chatBox, stop, renderMarkdown }
       }
     }).mount('#app')                                                 // 挂载到 #app
   </script>
