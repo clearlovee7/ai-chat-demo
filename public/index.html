@@ -370,6 +370,32 @@
     .md-body a {
       color: #409eff;
     }
+
+    .clear-btn {
+      margin-left: auto;
+      /* 推到右边 */
+      padding: 5px 12px;
+      border: 1px solid #e2e6ee;
+      border-radius: 8px;
+      background: #fff;
+      color: #6b7684;
+      font-size: 12.5px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .clear-btn:hover {
+      border-color: #409eff;
+      color: #409eff;
+    }
+
+    /* 原来 .tag 的 margin-left: auto 要删掉，否则两个元素抢着靠右 */
+    .header .tag {
+      margin-left: 10px;
+      /* 改成固定间距 */
+      font-size: 12px;
+      color: #9aa4b2;
+    }
   </style>
 </head>
 
@@ -380,6 +406,7 @@
     <header class="header">
       <span class="dot"></span>
       <h1>AI 流式对话</h1>
+      <button class="clear-btn" @click="clearChat">清空对话</button>
       <span class="tag">SSE 流式输出</span>
     </header>
 
@@ -449,7 +476,7 @@
     createApp({
       setup() {
         const input = ref('')         // 输入框内容
-        const messages = ref([])      // 全部消息：[{ role, content, thinking }]
+        const messages = ref(JSON.parse(localStorage.getItem('chat_messages')) || [])      // 全部消息：[{ role, content, thinking }]
 
         const loading = ref(false)                                  // 是否生成中
         const chatBox = ref(null)                                   // 消息区 DOM 引用（用于自动滚到底部）
@@ -540,12 +567,20 @@
             chatBox.value.scrollTop = chatBox.value.scrollHeight
           }
 
+          localStorage.setItem('chat_messages', JSON.stringify(messages.value))
+
           chatBox.value?.querySelectorAll('pre code:not(.hljs)').forEach(el => {
             hljs.highlightElement(el)
           });
         }, { deep: true })     // ★ deep 必须加，否则监听不到数组内部对象的变化
 
-        return { input, messages, loading, ask, chatBox, stop, renderMarkdown }
+        // ③ 加一个清空按钮
+        function clearChat() {
+          messages.value = []
+          localStorage.removeItem('chat_messages')
+        }
+
+        return { input, messages, loading, ask, chatBox, stop, renderMarkdown, clearChat }
       }
     }).mount('#app')                                                 // 挂载到 #app
   </script>
