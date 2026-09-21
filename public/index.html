@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>AI 流式对话</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #eef1f6;
+      height: 100vh;
+      display: flex;
+      /* 让卡片在页面居中 */
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      max-height: 860px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, .08);
+      display: flex;
+      /* 纵向三段式：头部 / 消息区 / 输入栏 */
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ---------- 顶部标题栏 ---------- */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 22px;
+      border-bottom: 1px solid #eef0f4;
+      flex-shrink: 0;
+      /* 不被消息区挤压 */
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #34c759;
+      box-shadow: 0 0 0 3px rgba(52, 199, 89, .15);
+    }
+
+    .header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .header .tag {
+      margin-left: auto;
+      font-size: 12px;
+      color: #9aa4b2;
+    }
+
+    /* ---------- 消息区 ---------- */
+    .chat {
+      flex: 1;
+      /* 占满中间剩余高度 */
+      overflow-y: auto;
+      /* 内容超出就滚动 */
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+
+    .chat::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat::-webkit-scrollbar-thumb {
+      background: #d8dee8;
+      border-radius: 3px;
+    }
+
+    .empty {
+      margin: auto;
+      /* 上下左右自动 → 垂直水平居中 */
+      color: #b3bcc9;
+      font-size: 14px;
+      text-align: center;
+      line-height: 2.2;
+    }
+
+    .row {
+      display: flex;
+    }
+
+    .row.user {
+      justify-content: flex-end;
+    }
+
+    /* 用户消息靠右 */
+    .row.ai {
+      justify-content: flex-start;
+    }
+
+    /* AI 消息靠左 */
+
+    .bubble {
+      max-width: 78%;
+      padding: 11px 15px;
+      border-radius: 14px;
+      font-size: 14.5px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      /* 保留换行和空格 */
+      word-break: break-word;
+    }
+
+    .user-bubble {
+      background: #409eff;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+      /* 小尖角，指向发送方 */
+    }
+
+    .ai-bubble {
+      background: #f4f6fa;
+      color: #26303d;
+      border-bottom-left-radius: 4px;
+    }
+
+    /* ---------- 思考过程（折叠面板） ---------- */
+    .thinking-box {
+      background: #fbfbfd;
+      border: 1px solid #eef0f4;
+      border-left: 3px solid #c9d3e2;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #8b96a5;
+    }
+
+    .thinking-box summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #a7b0bd;
+      letter-spacing: .5px;
+      user-select: none;
+      list-style: none;
+      /* 去掉浏览器默认的三角 */
+    }
+
+    .thinking-box summary::before {
+      content: '▸ ';
+      /* 收起时的右三角 */
+    }
+
+    .thinking-box[open] summary::before {
+      content: '▾ ';
+      /* 展开时的下三角 */
+    }
+
+    .thinking-body {
+      margin-top: 6px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      /* 故意不设 max-height：跟随外层消息区滚动，生成完会自动折叠 */
+    }
+
+    /* 打字光标 */
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 15px;
+      background: #409eff;
+      vertical-align: -2px;
+      margin-left: 2px;
+      animation: blink 1s steps(2) infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      50% {
+        opacity: 1;
+      }
+
+      51%,
+      100% {
+        opacity: 0;
+      }
+    }
+
+    /* ---------- 底部输入栏 ---------- */
+    .input-bar {
+      display: flex;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid #eef0f4;
+      background: #fafbfc;
+      flex-shrink: 0;
+      align-items: flex-end;
+    }
+
+    .input-bar textarea {
+      flex: 1;
+      /* 占满剩余宽度 */
+      height: 46px;
+      max-height: 120px;
+      padding: 12px 14px;
+      border: 1px solid #e2e6ee;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      background: #fff;
+      color: #26303d;
+    }
+
+    .input-bar textarea:focus {
+      border-color: #409eff;
+      box-shadow: 0 0 0 3px rgba(64, 158, 255, .12);
+    }
+
+    .input-bar button {
+      height: 46px;
+      padding: 0 22px;
+      border: none;
+      border-radius: 10px;
+      background: #409eff;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .input-bar button:hover:not(:disabled) {
+      background: #2f8ee5;
+    }
+
+    .input-bar button:disabled {
+      background: #c3d9f0;
+      cursor: not-allowed;
+    }
+
+    .bubble-error {
+      background: #fff2f0;
+      color: #d93026;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="app">
+
+    <!-- 顶部标题栏 -->
+    <header class="header">
+      <span class="dot"></span>
+      <h1>AI 流式对话</h1>
+      <span class="tag">SSE 流式输出</span>
+    </header>
+
+    <main class="chat" ref="chatBox">
+
+      <!-- 空状态：没有任何消息时显示 -->
+      <div v-if="messages.length === 0" class="empty">
+        输入一个问题，试试流式输出<br>
+        <span style="font-size:12px">回答会一个字一个字蹦出来</span>
+      </div>
+
+      <!-- 遍历所有消息 -->
+      <template v-for="(msg, i) in messages" :key="i">
+
+        <!-- 用户消息：右侧蓝气泡 -->
+        <div v-if="msg.role === 'user'" class="row user">
+          <div class="bubble user-bubble">{{ msg.content }}</div>
+        </div>
+
+        <!-- AI 消息：思考块 + 回复气泡 -->
+        <template v-else>
+          <!-- 思考过程：折叠面板，仅"最后一条 + 生成中"时自动展开，生成完自动收起 -->
+          <details v-if="msg.thinking" class="thinking-box" :open="loading && i === messages.length - 1">
+            <summary>深度思考</summary>
+            <div class="thinking-body">{{ msg.thinking }}</div>
+          </details>
+
+          <div class="row ai">
+            <div class="bubble ai-bubble" :class="{ 'bubble-error': msg.isError }">
+              <template v-if="msg.content">{{ msg.content }}</template>
+              <span v-else style="color:#9aa4b2">正在思考...</span>
+              <!-- 最后一条且正在生成时，显示闪烁光标 -->
+              <span v-if="loading && i === messages.length - 1 && msg.content" class="cursor"></span>
+            </div>
+          </div>
+        </template>
+
+      </template>
+
+    </main>
+
+
+    <!-- 底部输入栏：Enter 发送，Shift + Enter 换行 -->
+    <footer class="input-bar">
+      <textarea v-model="input" placeholder="输入你的问题，Enter 发送，Shift + Enter 换行"
+        @keydown.enter.exact.prevent="ask"></textarea>
+      <button @click="ask" :disabled="loading" v-if="!loading">
+        {{ loading ? '生成中' : '发送' }}
+      </button>
+      <button v-else @click="stop">停止</button>
+    </footer>
+
+  </div>
+
+  <script>
+    const { createApp, ref, watch, nextTick } = Vue
+
+    createApp({
+      setup() {
+        const input = ref('')         // 输入框内容
+        const messages = ref([])      // 全部消息：[{ role, content, thinking }]
+
+        const loading = ref(false)                                  // 是否生成中
+        const chatBox = ref(null)                                   // 消息区 DOM 引用（用于自动滚到底部）
+        let controller = null
+
+        async function ask() {
+          if (!input.value.trim() || loading.value) return        // 空内容或生成中 → 不发
+          const text = input.value
+          input.value = ''
+
+
+          messages.value.push({ role: 'user', content: text })
+          messages.value.push({ role: 'assistant', content: '', thinking: '' })
+          const idx = messages.value.length - 1
+
+
+          loading.value = true
+          controller = new AbortController()
+
+          try {
+            const res = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: messages.value.slice(0, -1) }),
+              signal: controller.signal
+            })
+
+            const reader = res.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              buffer += decoder.decode(value, { stream: true })
+              const lines = buffer.split('\n')
+              buffer = lines.pop()
+
+              for (const line of lines) {
+                if (!line.startsWith('data: ')) continue
+                const data = line.slice(6).trim()
+                if (data === '[DONE]') continue
+                try {
+                  const json = JSON.parse(data)
+                  // ★ 新增：先看后端有没有推错误过来
+                  if (json.error) {
+                    messages.value[idx].content = '❌ ' + json.error
+                    messages.value[idx].isError = true
+                    continue
+                  }
+                  const delta = json.choices?.[0]?.delta
+                  if (delta?.reasoning_content) messages.value[idx].thinking += delta.reasoning_content
+                  if (delta?.content) messages.value[idx].content += delta.content                       // 正文累加 → 逐字效果
+                } catch (e) { }                                       // 半截 JSON 忽略
+              }
+            }
+          } catch (err) {
+            if (err.name === 'AbortError') {                       // ④ 区分"用户主动停止"和"真出错"
+              messages.value[idx].content += '\n\n[已停止]'        // 注意改成 messages
+            } else {
+              messages.value[idx].content += '\n\n❌ ' + err.message
+            }
+          } finally {
+            controller = null
+            loading.value = false                                    // 恢复按钮
+          }
+        }
+
+        function stop() {                                        // ⑤ 停止函数
+          controller?.abort()                                    //    触发中断，reader.read() 会抛 AbortError
+        }
+
+        // 改成：深度监听数组（因为是数组里的对象在变）
+        watch(messages, async () => {
+          await nextTick()
+          if (chatBox.value) {
+            chatBox.value.scrollTop = chatBox.value.scrollHeight
+          }
+        }, { deep: true })     // ★ deep 必须加，否则监听不到数组内部对象的变化
+
+        return { input, messages, loading, ask, chatBox, stop }
+      }
+    }).mount('#app')                                                 // 挂载到 #app
+  </script>
+</body>
+
+</html>
