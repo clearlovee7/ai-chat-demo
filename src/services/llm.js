@@ -12,6 +12,11 @@ const STATUS_HINT = {
 }
 
 async function streamChat(messages, signal) {
+  // ★ 分离处理：系统提示永远保留，对话历史才做截断
+  const systemMsgs = messages.filter(m => m.role === 'system')                        // 系统提示：全部保留
+  const dialogMsgs = messages.filter(m => m.role !== 'system')                        // 对话消息：先过滤出来
+    .slice(-config.MAX_HISTORY)                                     // 只留最近 N 条
+
   const res = await fetch(config.LLM_BASE_URL, {
     method: 'POST',
     headers: {
@@ -22,7 +27,8 @@ async function streamChat(messages, signal) {
     },
     body: JSON.stringify({
       model: config.LLM_MODEL,
-      messages: messages.slice(-config.MAX_HISTORY),
+      // messages: messages.slice(-config.MAX_HISTORY),
+      messages: [...systemMsgs, ...dialogMsgs],        // ★ 系统提示在前 + 截断后的对话
       stream: true
     }),
     signal
