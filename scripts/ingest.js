@@ -11,7 +11,7 @@ async function main() {
   const text = fs.readFileSync(file, 'utf-8')   // 读成字符串（utf-8 保证中文不乱码）
   console.log(`读入 ${file}，共 ${text.length} 字`)
 
-  const chunks = splitText(text, 600, 100)   // 切成 400 字一片、重叠 80
+  const chunks = await splitText(text, 600, 100)   // 切成 400 字一片、重叠 80
   console.log(`切成 ${chunks.length} 个片段`)
 
   const vectors = []   // 装所有向量
