@@ -12,11 +12,13 @@ async function chat(req, res) {
 
   // ---------- ★ 新增：检索 + 组装 payload ----------
   let payload = messages
+  let refs = []
   const lastUser = [...messages].reverse().find(m => m.role === 'user') // 从后往前找最后一条用户消息
   if (lastUser) {                                                      // 有用户消息才检索
     try {
-      const hits = await search(lastUser.content, config.RAG_TOP_K)    // 检索最相关的 N 条
+      const hits = await search(lastUser.content, config.RAG_TOP_K, config.RAG_MIN_SCORE)    // 检索最相关的 N 条
       if (hits.length) {                                               // 检索到内容才拼 prompt
+        refs = hits
         const context = hits                                             // 把片段拼成文本
           .map((h, i) => `【片段 ${i + 1}】\n${h.text}`)
           .join('\n\n')
@@ -38,7 +40,19 @@ async function chat(req, res) {
   // ---------- ① 设置 SSE 三件套响应头 ----------
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Contention', 'keep-alive')
+  res.setHeader('Connection', 'keep-alive')
+
+
+  // ---------- ★ 新增：把引用来源推给前端 ----------
+  if (refs.length) {
+    res.write(`data: ${JSON.stringify({
+      type: 'references',
+      items: refs.map(h => ({
+        text: h.text,
+        score: h.score,
+      }))
+    })}\n\n`)
+  }
 
   // ---------- ② 中断处理 ----------
   const upstreamController = new AbortController()

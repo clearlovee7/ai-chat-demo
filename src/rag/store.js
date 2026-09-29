@@ -57,7 +57,7 @@ function cosineSimilarity(a, b) {
  * @param {number} topK 返回几条
  */
 
-async function search(query, topK = 1) {
+async function search(query, topK = 1, minScore = 0) {
   const queryVector = await getEmbedding(query)  // 把问题向量化
   const store = loadStore()  //读整个库
   if (store.length == 0) return [] // 库为空就返回
@@ -70,7 +70,7 @@ async function search(query, topK = 1) {
 
   scored.sort((a, b) => b.score - a.score)        //从高到低排序
 
-  return scored.slice(0, topK)        // 只取前 topK 条
+  return scored.slice(0, topK).filter(x => x.score >= minScore)            // 只取前 topK 条
 }
 
 module.exports = { saveStore, loadStore, cosineSimilarity, search }

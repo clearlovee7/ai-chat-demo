@@ -11,7 +11,7 @@ async function main() {
     process.exit(1)
   }
 
-  const results = await search(query, 3)
+  const results = await search(query, 3, 0)
 
   console.log(`\n 问题：${query}\n`)
 
