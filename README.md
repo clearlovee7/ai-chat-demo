@@ -2,7 +2,7 @@
 
 基于 Vue3 + Express 的 AI 对话应用，实现了 **SSE 流式输出**、**多轮上下文对话**、**生成中断** 等核心能力，并搭建了完整的 **RAG 检索链路**（切片 → 向量化 → 向量库 → 相似度检索 → 引用来源展示）。
 
-前端零构建（Vue3 CDN 引入），后端 Node.js + Express，通过自有 BFF 层转发大模型请求 —— **API Key 不暴露给浏览器**。
+前端 Vite + Vue3 + TypeScript 工程，后端 Node.js + Express，通过自有 BFF 层转发大模型请求 —— **API Key 不暴露给浏览器**。
 
 ## 功能
 
@@ -21,9 +21,12 @@
 
 | 层 | 技术 |
 | --- | --- |
-| 前端 | Vue3（CDN 引入，无需构建）+ Fetch Stream API |
+| 前端 | Vue3 + TypeScript + Vite |
+| 前端路由 | Vue Router（对话页 / 知识库页） |
+| UI 组件库 | Element Plus |
+| 前端样式 | scss + CSS 变量色板 |
 | 前端渲染 | marked（Markdown 解析）+ DOMPurify（XSS 过滤）+ highlight.js（代码高亮） |
-| 后端 | Node.js + Express |
+| 后端 | Node.js + Express（只提供 API） |
 | 对话模型 | OpenAI 兼容格式（SSE 流式） |
 | 文本切片 | LangChain `RecursiveCharacterTextSplitter` |
 | 向量化 | 硅基流动 `BAAI/bge-m3`（1024 维 Embedding） |
@@ -118,7 +121,7 @@ messages: messages.slice(-10)     // 只携带最近 10 条
 
 切片（Chunking）是 RAG 检索质量的第一决定因素 —— **检索不准，通常不是 embedding 模型的问题，而是片段本身就是碎的**。
 
-项目依次实现并实测了三版切法，代码保留在 `src/rag/chunk.js` 中作为对比。
+项目依次实现并实测了三版切法，代码保留在 `server/src/rag/chunk.js` 中作为对比。
 
 ### v1 · 按字符数硬切
 
@@ -298,58 +301,71 @@ const delta = json.choices?.[0]?.delta      // 才是正常内容
 
 ```
 create-AI/
-├── index.js                    # 组装与启动（16 行）
-├── src/
-│   ├── config.js               # 配置集中管理（接口地址 / 模型 / 密钥 / 截断条数）
-│   ├── services/
-│   │   ├── llm.js              # 调用大模型（流式转发）
-│   │   └── embedding.js        # 文本向量化（支持批量）
-│   ├── rag/
-│   │   ├── chunk.js            # 文本切片（三版实现保留对比）
-│   │   └── store.js            # 向量库读写 + 余弦相似度检索
-│   ├── controllers/
-│   │   └── chat.js             # SSE 业务逻辑（响应头 / 中断 / 错误处理）
-│   └── routes/
-│       └── chat.js             # 路由声明
-├── scripts/
-│   ├── ingest.js               # 建库脚本：读文档 → 切片 → 向量化 → 存库
-│   └── search.js               # 检索调试工具（命令行查相似片段）
-├── public/
-│   └── index.html              # 前端页面（Vue3 + 全量逻辑）
-├── data/
-│   └── store.json              # 向量库（已被 .gitignore 排除）
-└── .env                        # 环境变量（已被 .gitignore 排除）
+├── web/                              # 前端工程（Vite + Vue3 + TypeScript）
+│   ├── src/
+│   │   ├── App.vue                   # 根组件：RouterView + 全局色板（:root + *）
+│   │   ├── main.ts                   # 入口：挂 Router / Element Plus / 图标
+│   │   ├── router/index.ts           # 路由表（对话页 / 知识库页）
+│   │   ├── components/Header.vue     # 顶部导航（各页面自己引入）
+│   │   ├── views/
+│   │   │   ├── Chat.vue              # 对话页：SSE 流式 + 引用来源
+│   │   │   └── Knowledge.vue         # 知识库页（上传界面待做）
+│   │   └── types/chat.ts             # 前后端数据契约（ChatMessage / SseChunk / RefItem）
+│   ├── vite.config.ts                # @ 别名 + /api 代理到后端
+│   └── package.json
+├── server/                           # 后端（只提供 API）
+│   ├── index.js                      # 组装与启动
+│   ├── src/
+│   │   ├── config.js                 # 配置集中管理（接口地址 / 模型 / 密钥 / 截断条数）
+│   │   ├── services/
+│   │   │   ├── llm.js                # 调用大模型（流式转发）
+│   │   │   └── embedding.js          # 文本向量化（支持批量）
+│   │   ├── rag/
+│   │   │   ├── chunk.js              # 文本切片（三版实现保留对比）
+│   │   │   └── store.js              # 向量库读写 + 余弦相似度检索
+│   │   ├── controllers/chat.js       # SSE 业务逻辑（响应头 / 中断 / 错误处理）
+│   │   └── routes/chat.js            # 路由声明
+│   ├── scripts/
+│   │   ├── ingest.js                 # 建库脚本：读文档 → 切片 → 向量化 → 存库
+│   │   └── search.js                 # 检索调试工具（命令行查相似片段）
+│   ├── data/store.json               # 向量库（已被 .gitignore 排除）
+│   └── .env                          # 环境变量（已被 .gitignore 排除）
+├── AGENTS.md                         # 开发协作规范
+└── README.md
 ```
 
-**分层原则**：依赖单向流动 `routes → controllers → services → config`。
+**分层原则**（后端）：依赖单向流动 `routes → controllers → services → config`。
 
-- 替换模型服务商 → 只改 `config.js`
+- 替换模型服务商 → 只改 `server/src/config.js`
 - 新增接口 → 新增一个 route + controller
-- 换用别的 SDK → 只改 `services/llm.js`
-- 换 embedding 服务 → 只改 `services/embedding.js`
+- 换用别的 SDK → 只改 `server/src/services/llm.js`
+- 换 embedding 服务 → 只改 `server/src/services/embedding.js`
+
+**前端组织**：`App.vue` 只保留 `<RouterView>` 和全局色板（`:root` + `*`），页面级的结构和样式都写在各自的 `views/*.vue` 里；公共组件放 `components/`。
 
 ## 本地运行
 
-### 1. 安装依赖
+### 1. 装依赖（两端各一次）
 
 ```bash
-npm install
+cd server && npm install
+cd ../web && npm install
 ```
 
 ### 2. 配置环境变量
 
-在项目根目录新建 `.env`：
+在 `server/` 下新建 `.env`：
 
 ```
 DEEPSEEK_API_KEY=你的对话模型密钥
 SILICONFLOW_API_KEY=你的向量化服务密钥
 ```
 
-> ⚠️ `.env` 已加入 `.gitignore`，不会被提交到仓库。
+> ⚠️ `.env` 已被 `.gitignore` 排除，不会提交到仓库。
 
 ### 3. 修改接口配置
 
-编辑 `src/config.js`，填入你的对话接口与向量化服务地址：
+编辑 `server/src/config.js`，填入你的对话接口与向量化服务地址：
 
 ```js
 LLM_BASE_URL: '你的对话接口地址',
@@ -360,30 +376,38 @@ EMBEDDING_MODEL: '你的向量化模型名'
 
 ### 4. 建库（RAG 必需）
 
-默认读取项目根目录的 `README.md` 作为知识库文档：
-
 ```bash
-node scripts/ingest.js              # 用默认文档建库
+cd server
+node scripts/ingest.js              # 用默认文档（项目根 README.md）建库
 node scripts/ingest.js 文档路径      # 也可以指定其它文件
 ```
 
-产物写入 `data/store.json`。**改了切片策略必须重新执行本步骤** —— 库里的向量是用旧策略生成的，不重建不会更新。
+产物写入 `server/data/store.json`。**改了切片策略必须重新执行本步骤** —— 库里的向量是用旧策略生成的，不重建不会更新。
 
 ### 5. 验证检索
 
 ```bash
+cd server
 node scripts/search.js "你的问题"
 ```
 
 输出相似度最高的 3 个片段。**检索不准时先看片段开头是不是残句** —— 那说明切片策略需要调整。
 
-### 6. 启动
+### 6. 启动（两个终端）
 
 ```bash
-node index.js
+# 终端 1 · 后端（提供 /api）
+cd server
+node index.js                  # http://localhost:3000
+
+# 终端 2 · 前端
+cd web
+npm run dev                    # http://localhost:5173
 ```
 
-浏览器打开 `http://localhost:3000`
+浏览器打开 **`http://localhost:5173`**。
+
+前端通过 Vite proxy 把 `/api` 转发到后端 3000 端口 —— 开发期同源、无需 CORS，后端也不用装 `cors`。
 
 ## 已知限制
 
@@ -393,12 +417,16 @@ node index.js
 - 向量库为本地 JSON 文件，未使用专业向量数据库（无索引加速、无元数据过滤）
 - 对话历史存于 localStorage，**换浏览器 / 设备不共享**
 - 知识库只能通过命令行建库，未做上传界面
+- 前端 Element Plus 为**全量引入**，未做按需优化（打包体积偏大）
+- 组件样式暂未加 `scoped`（Markdown 的 `v-html` 内容需要 `:deep()` 配合才不失效）
 - 未实现错误重试与断点续传
 
 ## 后续计划
 
 - [ ] **Rerank 重排序** —— 向量召回 top20 → Rerank 精排 top3。阈值是简化替代方案，库变大后噪音增多需要真正的精排
 - [ ] **文档上传界面** —— 当前只能命令行建库，不是产品形态
+- [ ] 前端样式隔离：`scoped` + `:deep()` 处理 v-html 渲染的内容
+- [ ] Element Plus 改按需引入（当前全量，体积可优化）
 - [ ] 按 token 数精确截断上下文
 - [ ] 错误自动重试（429 / 503 场景）
 - [ ] 向量化结果缓存（相同文本不重复请求）

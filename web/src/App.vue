@@ -1,30 +1,46 @@
+<template>
+  <RouterView />
+</template>
+
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 </script>
 
-<template>
-  <!-- 根组件只渲染路由，页面是什么由路由表决定 -->
-  <RouterView />
-</template>
-
 <style lang="scss">
-/* ---------- 色板 ----------
-   :root 就是 <html>，定义在这里的变量全站可用 */
-
 :root {
-  --primary: #409eff;
-  --primary-hover: #2f8ee5;
-  --text-main: #1f2937;
-  --text-body: #26303d;
-  --text-muted: #6b7684;
-  --text-hint: #9aa4b2;
-  --border: #eef0f4;
-  --border-input: #e2e6ee;
-  --bg-hover: #f4f6fa;
-  --bg-panel: #fbfbfd;
+  --bg: #080a0f;
+  --surface: #0e1219;
+  --surface-2: #141922;
+  --surface-3: #1b212c;
+
+  --line: #232a37;
+  --line-2: #2f3846;
+
+  --text: #e7ecf3;
+  --text-2: #96a1b4;
+  --text-3: #5d687a;
+
+  --accent: #ffb454;
+  --accent-2: #ffcb7d;
+  --accent-dim: rgba(255, 180, 84, .13);
+  --accent-line: rgba(255, 180, 84, .32);
+  --accent-glow: rgba(255, 180, 84, .22);
+
+  --ok: #4ade80;
+  --danger: #ff6b6b;
+
+  --el-color-primary: #ffb454;
+  --el-color-primary-light-3: #c98a3f;
+  --el-color-primary-light-5: #8a5f2a;
+  --el-color-primary-light-7: #4a3418;
+  --el-color-primary-light-8: #33240f;
+  --el-color-primary-light-9: #1f1608;
+  --el-color-primary-dark-2: #ffcb7d;
+
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
-/* ---------- 全局基础 ---------- */
 * {
   box-sizing: border-box;
   margin: 0;
