@@ -7,7 +7,7 @@ const { getEmbeddings } = require('../src/services/embedding')
 const { saveStore } = require('../src/rag/store')
 
 async function main() {
-  const file = process.argv[2] || path.join(__dirname, '../README.md')  // 从命令行取文件，默认用 README
+  const file = process.argv[2] || path.join(__dirname, '../../README.md')  // 从命令行取文件，默认用 README
   const text = fs.readFileSync(file, 'utf-8')   // 读成字符串（utf-8 保证中文不乱码）
   console.log(`读入 ${file}，共 ${text.length} 字`)
 
