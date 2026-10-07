@@ -16,6 +16,7 @@
 - **分层架构** —— routes / controllers / services / config 四层，更换模型服务商只需改一处配置
 - **RAG 知识库检索** —— 文档切片 → 向量化入库 → 余弦相似度检索，带相似度阈值过滤（切片策略演进见下文）
 - **引用来源展示** —— 回答下方可展开查看命中的原文片段与相似度分数
+- **知识库上传界面** —— 前端拖拽上传 `.md` / `.txt`，可选「追加到现有库」或「清空重建」，自动切片入库
 
 ## 技术栈
 
@@ -306,11 +307,13 @@ create-AI/
 │   │   ├── App.vue                   # 根组件：RouterView + 全局色板（:root + *）
 │   │   ├── main.ts                   # 入口：挂 Router / Element Plus / 图标
 │   │   ├── router/index.ts           # 路由表（对话页 / 知识库页）
-│   │   ├── components/Header.vue     # 顶部导航（各页面自己引入）
+│   │   ├── components/SideNav.vue    # 侧栏导航（el-menu，各页面自己引入）
 │   │   ├── views/
 │   │   │   ├── Chat.vue              # 对话页：SSE 流式 + 引用来源
-│   │   │   └── Knowledge.vue         # 知识库页（上传界面待做）
-│   │   └── types/chat.ts             # 前后端数据契约（ChatMessage / SseChunk / RefItem）
+│   │   │   └── Knowledge.vue         # 知识库页：文档上传 → 切片 → 入库
+│   │   └── types/                    # 前后端数据契约
+│   │       ├── chat.ts               # ChatMessage / SseChunk / RefItem
+│   │       └── knowledge.ts          # IngestMode / IngestResult / StoreInfo
 │   ├── vite.config.ts                # @ 别名 + /api 代理到后端
 │   └── package.json
 ├── server/                           # 后端（只提供 API）
@@ -323,10 +326,13 @@ create-AI/
 │   │   ├── rag/
 │   │   │   ├── chunk.js              # 文本切片（三版实现保留对比）
 │   │   │   └── store.js              # 向量库读写 + 余弦相似度检索
-│   │   ├── controllers/chat.js       # SSE 业务逻辑（响应头 / 中断 / 错误处理）
-│   │   └── routes/chat.js            # 路由声明
+│   │   ├── controllers/
+│   │   │   ├── chat.js               # SSE 业务逻辑（响应头 / 中断 / 错误处理）
+│   │   │   └── ingest.js             # 入库：切片 → 批量向量化 → 合并存库
+│   │   └── routes/
+│   │       ├── chat.js               # 对话路由
+│   │       └── ingest.js             # 入库 + 库状态路由
 │   ├── scripts/
-│   │   ├── ingest.js                 # 建库脚本：读文档 → 切片 → 向量化 → 存库
 │   │   └── search.js                 # 检索调试工具（命令行查相似片段）
 │   ├── data/store.json               # 向量库（已被 .gitignore 排除）
 │   └── .env                          # 环境变量（已被 .gitignore 排除）
@@ -376,13 +382,15 @@ EMBEDDING_MODEL: '你的向量化模型名'
 
 ### 4. 建库（RAG 必需）
 
-```bash
-cd server
-node scripts/ingest.js              # 用默认文档（项目根 README.md）建库
-node scripts/ingest.js 文档路径      # 也可以指定其它文件
-```
+> 入库走前端界面，所以要**先启动前后端**（见第 6 步）。
 
-产物写入 `server/data/store.json`。**改了切片策略必须重新执行本步骤** —— 库里的向量是用旧策略生成的，不重建不会更新。
+启动后打开 `http://localhost:5173`，进入左侧「知识库」页：
+
+1. 拖入 `.md` / `.txt` 文件
+2. 选入库模式：**追加到现有库** / **清空重建**
+3. 点「开始入库」，等它跑完（片段越多越慢，向量化按每批 16 条送）
+
+产物写入 `server/data/store.json`。**改了切片策略必须用「清空重建」重新建库** —— 库里的向量是用旧策略生成的，不重建不会更新。
 
 ### 5. 验证检索
 
@@ -413,10 +421,10 @@ npm run dev                    # http://localhost:5173
 
 - 上下文按**条数**截断（`slice(-10)`），未按 token 数精确控制
 - 检索为**单阶段纯向量粗排**，未接入 Rerank 精排
-- **相似度阈值 0.5 是当前知识库实测出来的经验值** —— 换 embedding 模型或换文档类型需要重新标定
+- **相似度阈值 0.4 与切片粒度 300 字都是实测出来的经验值** —— 换 embedding 模型或换文档类型需要重新标定
 - 向量库为本地 JSON 文件，未使用专业向量数据库（无索引加速、无元数据过滤）
 - 对话历史存于 localStorage，**换浏览器 / 设备不共享**
-- 知识库只能通过命令行建库，未做上传界面
+- 上传仅支持 `.md` / `.txt`（PDF / Word 是二进制格式，需要额外的解析库）
 - 前端 Element Plus 为**全量引入**，未做按需优化（打包体积偏大）
 - 组件样式暂未加 `scoped`（Markdown 的 `v-html` 内容需要 `:deep()` 配合才不失效）
 - 未实现错误重试与断点续传
@@ -424,7 +432,6 @@ npm run dev                    # http://localhost:5173
 ## 后续计划
 
 - [ ] **Rerank 重排序** —— 向量召回 top20 → Rerank 精排 top3。阈值是简化替代方案，库变大后噪音增多需要真正的精排
-- [ ] **文档上传界面** —— 当前只能命令行建库，不是产品形态
 - [ ] 前端样式隔离：`scoped` + `:deep()` 处理 v-html 渲染的内容
 - [ ] Element Plus 改按需引入（当前全量，体积可优化）
 - [ ] 按 token 数精确截断上下文

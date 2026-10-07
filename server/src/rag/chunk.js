@@ -82,7 +82,7 @@ const SEPARATORS = ['\n\n', '\n', '。', '！', '？', '；', '，', ' ', '']
  * @param {number} chunkOverlap 重叠长度
  * @returns {Promise<string[]>} 片段数组
  */
-async function splitText(text, chunkSize = 600, chunkOverlap = 100) {
+async function splitText(text, chunkSize = 300, chunkOverlap = 100) {
   const splitter = new RecursiveCharacterTextSplitter({    // 创建切分器实例
     chunkSize,                                             // 目标大小
     chunkOverlap,                                          // 重叠大小
